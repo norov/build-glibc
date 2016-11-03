@@ -2,6 +2,7 @@ REPO=https://github.com/norov/glibc.git
 BRANCH=ilp32-2.24-dev1
 
 ABI=ilp32 lp64
+_ABI=$(subst .$(BUILD_SUF),,$@)
 
 CC=ccache /home/yury/work/thunderx-tools-437/bin/aarch64-thunderx-linux-gnu-gcc
 CXX=ccache /home/yury/work/thunderx-tools-437/bin/aarch64-thunderx-linux-gnu-g++
@@ -17,8 +18,10 @@ HEADERS=--with-headers=$(LINUX_DIR)/usr/include
 TEST_WRAPPER=test-wrapper="$(TOP)/glibc/scripts/cross-test-ssh.sh $(REMOTE)"
 
 CONF=$(TARGET) $(HOST) $(PREFIX) $(HEADERS)
-BUILD=$(addsuffix .build, $(ABI))
-LOGS=$(addsuffix .build.log, $(ABI))
+BUILD_SUF=build
+LOG_SUF=log
+BUILD=$(addsuffix .$(BUILD_SUF), $(ABI))
+LOGS=$(addsuffix .$(LOG_SUF), $(ABI))
 
 REMOTE=root@10.0.0.2
 
@@ -41,20 +44,22 @@ clean:
 	rm -rf $(LOGS)
 	rm -rf $(DST)
 
-%.build:
+%.$(BUILD_SUF):
 	mkdir -p $@;
-	cd $@; $(SRC)/configure $(CONF) CXX="$(CXX) -mabi=$(subst .build,,$@)" CC="$(CC) -mabi=$(subst .build,,$@)" >../$@.log || cd ..; rm -rf $@
+	cd $@; $(SRC)/configure $(CONF) CXX="$(CXX) -mabi=$(_ABI)" \
+		CC="$(CC) -mabi=$(_ABI)" >../$(_ABI).$(LOG_SUF) || cd ..; \
+		rm -rf $@
 
-lp64: lp64.build
-	make -C lp64.build -j`nproc`  > lp64.build.log;
-	make -C lp64.build install DESTDIR=$(DST)  >> lp64.build.log;
+lp64: lp64.$(BUILD_SUF)
+	make -C $@.$(BUILD_SUF) -j`nproc` > $@.$(LOG_SUF);
+	make -C $@.$(BUILD_SUF) install DESTDIR=$(DST)  >> $@.$(LOG_SUF);
 
-ilp32: ilp32.build
-	make -C ilp32.build -j`nproc`  > ilp32.build.log;
-	make -C ilp32.build install DESTDIR=$(DST) >> ilp32.build.log;
+ilp32: ilp32.$(BUILD_SUF)
+	make -C $@.$(BUILD_SUF) -j`nproc` > $@.$(LOG_SUF);
+	make -C $@.$(BUILD_SUF) install DESTDIR=$(DST)  >> $@.$(LOG_SUF);
 
 install: $(DST)
-	rsync -avz sys-root $(REMOTE):
+	rsync -avz $(DST) $(REMOTE):
 
 $(DST): $(BUILD)
 
@@ -65,5 +70,5 @@ headers_install:
 # To do it with sshfs, on REMOTE, try:
 # sshfs LOCAL:TOP TOP
 check: $(BUILD)
-	make -C ilp32.build check $(TEST_WRAPPER) > ilp32.check
-	make -C lp64.build check $(TEST_WRAPPER) > lp64.check
+	make -C ilp32.$(BUILD_SUF) check $(TEST_WRAPPER) > ilp32.check
+	make -C lp64.$(BUILD_SUF) check $(TEST_WRAPPER) > lp64.check
