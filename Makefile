@@ -72,3 +72,39 @@ headers_install:
 check: $(BUILD)
 	make -C ilp32.$(BUILD_SUF) check $(TEST_WRAPPER) > ilp32.check
 	make -C lp64.$(BUILD_SUF) check $(TEST_WRAPPER) > lp64.check
+
+ltp_build: ltp32 ltp64
+
+ltp32: ltp
+	cd ltp; sh ./conf32.sh > ../ltp-ilp32.log;
+	cd ltp; make clean >> ../ltp-ilp32.log;
+	cd ltp; make -j`nproc` >> ../ltp-ilp32.log;
+	cd ltp; make install >> ../ltp-ilp32.log;
+
+ltp64: ltp
+	cd ltp; sh ./conf64.sh > ../ltp-lp64.log;
+	cd ltp; make clean >> ../ltp-lp64.log;
+	cd ltp; make -j`nproc` >> ../ltp-lp64.log;
+	cd ltp; make install >> ../ltp-lp64.log;
+
+ltp_install:
+	rsync -avz ltp/ilp32 arm:
+	rsync -avz ltp/lp64 arm:
+
+ltp_run: ltp_run32 ltp_run64
+
+ltp_run32:
+	ssh arm "cd ilp32; rm -f results/ltp-ilp32.sum testcases/bin/ltp-ilp32.out \
+		&&  ./runltplite.sh -l ltp-ilp32.sum -p -o ltp-ilp32.out & "
+	scp arm: ilp32/results/ltp-ilp32.sum ../
+
+ltp_run64:
+	ssh arm "cd lp64; rm -f results/ltp-lp64.sum testcases/bin/ltp-lp64.out \
+		&&  ./runltplite.sh -l ltp-lp64.sum -p -o ltp-lp64.out & "
+	scp arm: lp64/results/ltp-lp64.sum ../
+
+ltp_show32:
+	ssh arm "tail -f ilp32/results/ltp-ilp32.sum"
+
+ltp_show64:
+	ssh arm "tail -f lp64/results/ltp-lp64.sum"
