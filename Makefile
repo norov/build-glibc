@@ -25,7 +25,7 @@ LOGS=$(addsuffix .$(LOG_SUF), $(ABI))
 
 REMOTE=root@10.0.0.2
 
-all: glibc $(ABI)
+all: glibc $(ABI) ltp_build
 
 glibc:
 	git clone $(REPO)
@@ -70,19 +70,25 @@ headers_install:
 # To do it with sshfs, on REMOTE, try:
 # sshfs LOCAL:TOP TOP
 check: $(BUILD)
-	make -C ilp32.$(BUILD_SUF) check $(TEST_WRAPPER) > ilp32.check
-	make -C lp64.$(BUILD_SUF) check $(TEST_WRAPPER) > lp64.check
+	-make -C ilp32.$(BUILD_SUF) check $(TEST_WRAPPER) > ilp32.check
+	-make -C lp64.$(BUILD_SUF) check $(TEST_WRAPPER) > lp64.check
+	diff -y --suppress-common-lines ilp32.build/tests.sum lp64.build/tests.sum | tee check.diff
 
 ltp_build: ltp32 ltp64
 
+ltp_clean:
+	rm -rf ltp/ilp32 ltp/lp64
+	rm -f ltp-ilp32.err ltp-ilp32.log
+	rm -f ltp-lp64.err ltp-lp64.log
+
 ltp32: ltp
-	cd ltp; sh ./conf32.sh > ../ltp-ilp32.log;
+	cd ltp; sh ../conf32.sh > ../ltp-ilp32.log;
 	cd ltp; make clean >> ../ltp-ilp32.log;
 	cd ltp; make -j`nproc` >> ../ltp-ilp32.log;
 	cd ltp; make install >> ../ltp-ilp32.log;
 
 ltp64: ltp
-	cd ltp; sh ./conf64.sh > ../ltp-lp64.log;
+	cd ltp; sh ../conf64.sh > ../ltp-lp64.log;
 	cd ltp; make clean >> ../ltp-lp64.log;
 	cd ltp; make -j`nproc` >> ../ltp-lp64.log;
 	cd ltp; make install >> ../ltp-lp64.log;
@@ -92,19 +98,21 @@ ltp_install:
 	rsync -avz ltp/lp64 arm:
 
 ltp_run: ltp_run32 ltp_run64
+	diff -y --suppress-common-lines ltp-ilp32.sum ltp-lp64.sum | tee ltp.diff
 
 ltp_run32:
 	ssh arm "cd ilp32; rm -f results/ltp-ilp32.sum testcases/bin/ltp-ilp32.out \
 		&&  ./runltplite.sh -l ltp-ilp32.sum -p -o ltp-ilp32.out & "
-	scp arm: ilp32/results/ltp-ilp32.sum ../
+	scp arm:/root/ilp32/results/ltp-ilp32.sum ./
 
 ltp_run64:
 	ssh arm "cd lp64; rm -f results/ltp-lp64.sum testcases/bin/ltp-lp64.out \
 		&&  ./runltplite.sh -l ltp-lp64.sum -p -o ltp-lp64.out & "
-	scp arm: lp64/results/ltp-lp64.sum ../
+	scp arm:/root/lp64/results/ltp-lp64.sum ./
 
 ltp_show32:
 	ssh arm "tail -f ilp32/results/ltp-ilp32.sum"
 
 ltp_show64:
 	ssh arm "tail -f lp64/results/ltp-lp64.sum"
+
