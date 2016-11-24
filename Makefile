@@ -69,10 +69,16 @@ headers_install:
 # Assume REMOTE has mounted TOP under /
 # To do it with sshfs, on REMOTE, try:
 # sshfs LOCAL:TOP TOP
-check: $(BUILD)
-	-make -C ilp32.$(BUILD_SUF) check $(TEST_WRAPPER) > ilp32.check
-	-make -C lp64.$(BUILD_SUF) check $(TEST_WRAPPER) > lp64.check
+check: check64 check32
 	diff -y --suppress-common-lines ilp32.build/tests.sum lp64.build/tests.sum | tee check.diff
+
+check64: lp64.$(BUILD_SUF)
+	-make -C lp64.$(BUILD_SUF) check $(TEST_WRAPPER) > lp64.check
+	cp lp64.build/tests.sum results/lp64-`date -I`.sum
+
+check32: ilp32.$(BUILD_SUF)
+	-make -C ilp32.$(BUILD_SUF) check $(TEST_WRAPPER) > ilp32.check
+	cp ilp32.build/tests.sum results/ilp32-`date -I`.sum
 
 ltp_build: ltp32 ltp64
 
