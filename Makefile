@@ -25,7 +25,7 @@ LOGS=$(addsuffix .$(LOG_SUF), $(ABI))
 
 REMOTE=root@10.0.0.2
 
-all: glibc $(ABI) ltp_build
+all: glibc $(ABI)# ltp_build
 
 glibc:
 	git clone $(REPO)
@@ -57,6 +57,42 @@ lp64: lp64.$(BUILD_SUF)
 ilp32: ilp32.$(BUILD_SUF)
 	make -C $@.$(BUILD_SUF) -j`nproc` > $@.$(LOG_SUF);
 	make -C $@.$(BUILD_SUF) install DESTDIR=$(DST)  >> $@.$(LOG_SUF);
+
+clean_trinity:
+	rm -rf trinity32 trinity64
+	make -C trinity.src clean
+
+install_trinity: trinity32 trinity64
+	scp trinity32 arm:/home/trinity/trinity_32
+	scp trinity64 arm:/home/trinity/trinity_64
+
+trinity32: trinity.src
+	rm $SYSROOT -rf
+	cp -r /home/yury/work/glibc-img/sys-root $SYSROOT
+	cp -r /home/yury/work/linux/usr/include/* $SYSROOT/usr/include
+	make -C trinity.src  clean
+	cd trinity.src; CC=gcc SYSROOT=/home/yury/work/glibc-img/sr \
+	CFLAGS="-mabi=ilp32 -B/home/yury/work/glibc-img/sr/usr/libilp32" ./configure  
+	CC=gcc SYSROOT=/home/yury/work/glibc-img/sr \
+	CFLAGS="-mabi=ilp32 -B/home/yury/work/glibc-img/sr/usr/libilp32" \
+	LDFLAGS="-mabi=ilp32 -Wl,--rpath=/root/sys-root/libilp32 \
+	-Wl,--dynamic-linker=/root/sys-root/libilp32/ld-2.24.90.so" \
+	make -C trinity.src -j12 && mv trinity.src/trinity ./trinity32
+
+trinity64: trinity.src
+	rm $SYSROOT -rf
+	cp -r /home/yury/work/glibc-img/sys-root $SYSROOT
+	cp -r /home/yury/work/linux/usr/include/* $SYSROOT/usr/include
+	make -C trinity.src  clean
+	cd trinity.src; CC=gcc \
+	SYSROOT=/home/yury/work/glibc-img/sr \
+	CFLAGS=-B/home/yury/work/glibc-img/sr/usr/lib64 ./configure  
+	CC=gcc \
+	SYSROOT=/home/yury/work/glibc-img/sr \
+	CFLAGS=-B/home/yury/work/glibc-img/sr/usr/lib64 \
+	LDFLAGS=" -Wl,--rpath=/root/sys-root/lib64 \
+	-Wl,--dynamic-linker=/root/sys-root/lib64/ld-2.24.90.so" \
+	make -C trinity.src -j12 && mv trinity.src/trinity ./trinity64
 
 install: $(DST)
 	rsync -avz $(DST) $(REMOTE):
